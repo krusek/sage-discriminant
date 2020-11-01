@@ -198,7 +198,22 @@ class Intersection:
     self.r2 = r2
 
 def find_nearest(f, v, bounds, depth):
-  m = (bounds[0] + bounds[1]) / 2
+  """Uses binary search to find the point that evaluates nearest to v.
+  This makes a strong assumption on f. Namely, that it does not approach
+  v and then go away and come back. This is a safe assumption for 2d
+  A-discriminants, but unknown for higher dimensions. This could be made
+  slightly faster by using a tolerance rather than the depth.
+
+  Args:
+      f (function): A function that evaluates the A-discriminant
+      v (double or list of double): value to attempt to approach
+      bounds (list): upper and lower bound to search
+      depth (int): number of remaining iterations (bisections) to test
+
+  Returns:
+      double or list of double: returns the parameter that was found through binary search
+  """
+  m = lerp(bounds[0], bounds[1], 1, 2)
   if depth == 0:
     return m
   hv = f(bounds[1])
@@ -210,6 +225,22 @@ def find_nearest(f, v, bounds, depth):
     return find_nearest(f, v, [m, bounds[1]], depth - 1)
 
 def lerp(lower, upper, step, steps):
+  ''' Interpolates between [lower] and [upper]. Assuming there are [steps] number
+  of steps between [lower] and [upper] it finds the [step]th step between. When 
+  [step]==0 then lower is returned, when [step]==[steps] then [upper] is returned.
+
+  Essentially returns:
+    lower * (steps - step) / steps + upper * step / steps
+
+  Args:
+      lower (double or list of double): lower bound of the interpolation (value at [step]==0).
+      upper (double or list of double): upper bound of the interpolation (value at [step]==[steps]).
+      step (int): step number to produce.
+      steps (int): number of steps.
+
+  Returns:
+      List of double: Returns None if the point is undefined (likely unbounded).
+  '''
   interp = lambda l, u: u * step / steps + l * (steps - step) / steps
   if type(lower) == list:
     return list(map(lambda coords: interp(coords[0], coords[1]), zip(lower, upper)))
@@ -284,12 +315,12 @@ f = lambda angle: d.evaluate(angle_to_point(fast_float_constant(angle)()))
 angles = b_to_zero_angles(b)
 
 vals = simple_intersect(f, [angles[0], angles[1]], [angles[2], angles[3]], 3)
-assert equals(vals[2], 0), 'intersection not found'
+assert is_zero(vals[2] * 1e3), 'intersection not found'
 assert equals(vals[0], 0.7338760438785756), 'incorrect left intersection angle'
 assert equals(vals[1], 1.4082515450111763), 'incorrect right intersection angle'
 
 vals = simple_intersect(f, [angles[0], angles[1]], [angles[3], angles[4]], 3)
-assert(equals(vals[2], 0) == False)
+assert(is_zero(vals[2]) == False)
 
 AA = [[1,1,1,1,1],[0,1,2,3,4]]
 NS = [[-1,1,0,1,-1],[0,1,-1,-1,1]]
