@@ -209,6 +209,12 @@ def find_nearest(f, v, bounds, depth):
   else:
     return find_nearest(f, v, [m, bounds[1]], depth - 1)
 
+def lerp(lower, upper, step, steps):
+  interp = lambda l, u: u * step / steps + l * (steps - step) / steps
+  if type(lower) == list:
+    return list(map(lambda coords: interp(coords[0], coords[1]), zip(lower, upper)))
+  return interp(lower, upper)
+
 def simple_intersect(f, r1, r2, depth):
   size = 20
   bounds2 = [r2[0] * (size - 1) / size + r2[1] * 1 / size, r2[0] * 1 / size + r2[1] * (size - 1) / size]
@@ -218,7 +224,7 @@ def simple_intersect(f, r1, r2, depth):
   nearest_v = None
   delta = None
   for idx in range(1, size):
-    x = r1[0] * idx / size + r1[1] * (size - idx) / size
+    x = lerp(r1[0], r1[1], idx, size)
     v = f(x)
     if abs(v[0]) > 10 or abs(v[1]) > 10:
       continue
@@ -238,11 +244,15 @@ def simple_intersect(f, r1, r2, depth):
     return (nearest_angle1, nearest_angle2, delta)
   lx = nearest_idx - 1
   hx = nearest_idx + 1
-  lower = r1[0] * lx / size + r1[1] * (size - lx) / size
-  upper = r1[0] * hx / size + r1[1] * (size - hx) / size
+  lower = lerp(r1[0], r1[1], nearest_idx - 1, size)
+  upper = lerp(r1[0], r1[1], nearest_idx + 1, size)
   return simple_intersect(f, [lower, upper], r2, depth - 1)
 
 ### Tests
+
+assert(lerp(0, 1, 50, 100) == 1/2)
+assert(lerp(0, 1, 0, 100) == 0)
+assert(lerp(0, 1, 100, 100) == 1)
 
 assert(Line([0,0], [1,1]).intersect(Line([2,0], [1, -1])) == [1,1])
 assert(Line([0,0], [1,1]).intersect(Line([2,0], [-1, -1])) == None)
@@ -268,19 +278,23 @@ A = [[1,1,1,1], [0,1,2,3]]
 NS = [[-1, 1, 1, -1], [1, -2, 1, 0]]
 b = [[-1,1], [1,-2], [1,1], [-1,0]] # = NS^T
 
+d = DiscriminantFunction(b)
+
+f = lambda angle: d.evaluate(angle_to_point(fast_float_constant(angle)()))
+angles = b_to_zero_angles(b)
+
+vals = simple_intersect(f, [angles[0], angles[1]], [angles[2], angles[3]], 3)
+assert equals(vals[2], 0), 'intersection not found'
+assert equals(vals[0], 0.7338760438785756), 'incorrect left intersection angle'
+assert equals(vals[1], 1.4082515450111763), 'incorrect right intersection angle'
+
+vals = simple_intersect(f, [angles[0], angles[1]], [angles[3], angles[4]], 3)
+assert(equals(vals[2], 0) == False)
+
 AA = [[1,1,1,1,1],[0,1,2,3,4]]
 NS = [[-1,1,0,1,-1],[0,1,-1,-1,1]]
 b3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [-4, -3, -2], [3, 2, 1]]
 
-print(list(map(lambda bb: fast_float_constant(bb)(), b_to_zero_angles(b))))
-d = DiscriminantFunction(b)
-print(d.evaluate([2,1]))
-
-f = lambda angle: d.evaluate(angle_to_point(fast_float_constant(angle)()))
-angles = b_to_zero_angles(b)
-print(simple_intersect(f, [angles[0], angles[1]], [angles[2], angles[3]], 10))
-print(simple_intersect(f, [angles[0], angles[1]], [angles[3], angles[4]], 10))
-print(simple_intersect(f, [angles[1], angles[2]], [angles[3], angles[4]], 10))
 m = matrix(AA)
 # m.transpose().null_space()
 
