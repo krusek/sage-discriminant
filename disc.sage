@@ -311,7 +311,7 @@ b = [[-1,1], [1,-2], [1,1], [-1,0]] # = NS^T
 
 d = DiscriminantFunction(b)
 
-f = lambda angle: d.evaluate(angle_to_point(fast_float_constant(angle)()))
+f = lambda angle: d.evaluate(angle_to_point(evalf(angle))
 angles = b_to_zero_angles(b)
 
 vals = simple_intersect(f, [angles[0], angles[1]], [angles[2], angles[3]], 3)
