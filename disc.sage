@@ -248,7 +248,7 @@ def lerp(lower, upper, step, steps):
 
 def simple_intersect(f, r1, r2, depth):
   size = 20
-  bounds2 = [r2[0] * (size - 1) / size + r2[1] * 1 / size, r2[0] * 1 / size + r2[1] * (size - 1) / size]
+  bounds2 = [lerp(r2[0], r2[1], 2*size - 1, 2*size), lerp(r2[0], r2[1], 1, 2*size)]
   nearest_angle1 = None
   nearest_angle2 = None
   nearest_idx = None
@@ -279,6 +279,90 @@ def simple_intersect(f, r1, r2, depth):
   upper = lerp(r1[0], r1[1], nearest_idx + 1, size)
   return simple_intersect(f, [lower, upper], r2, depth - 1)
 
+def intersect_line(line, point, vector):
+  """Find the intersection of a [line] and a [vector] emanating from a given [point].
+  If the vector is parallel to the line and the point is not on the line then there is
+  no intersection and None is returned.
+
+  Args:
+      line (list of num): if line = sum_i a_i*x_i + c then line = [a_0, a_1,...,a_n, c]
+      point (list of num): Point of form [p_0,...,p_n]
+      vector (list of vector): Vector of form [v_0,...,v_n]
+
+  Returns:
+      list of num: The point of intersection, or None if it doesn't exist.
+  """
+  assert len(line) == (len(point) + 1), 'line must be 1 longer than point'
+  assert len(point) == len(vector), 'point and vector must be same length'
+
+  value = sum(map(lambda b: b[0] * b[1], zip(line, point))) + line[-1]
+  if is_zero(value):
+    return point
+
+  # With a line given as ax + by + c == 0 and
+  # line = [a, b, c]
+  # With a point = [px, py] and vector = [vx, vy]
+  # Then we have
+  # a * (px + vx * n) + b * (py + vy * n) + c = 0
+  # (a * vx + b * vy) * n = -c - a * px - b * py
+  # n = - (c + a * px + b * py) / (a * vx + b * vy)
+  # x = px + vx * n, y = py + vy * n
+  
+  numerator = - (line[-1] + sum(map(lambda b: b[0] * b[1], zip(line, point))))
+  denominator = sum(map(lambda b: b[0] * b[1], zip(line, vector)))
+  if is_zero(denominator):
+    return None
+  n = numerator / denominator
+  return list(map(lambda b: b[0] + b[1] * n, zip(point, vector)))
+
+def evaluate_line(line, point):
+  """Evaluates the unknown coordinate of point. That coordinate should be None. That is, if
+
+  line = [a, b, c] (ie a*x + b*y + c = 0)
+
+  point = [1, None]
+
+  Then it evaluates the line's y value at x = 1
+
+  Args:
+      line (list of num): The line to evalutate. If line is a*x + b*y + c = 0 then the input is [a,b,c]
+      point (list of num): a list of points of length len(line) - 1 with one entry equal to None
+  
+  Returns:
+      coordinates of the fully evaluated point.
+  """
+  assert len(line) == len(point) + 1, 'line must be one dimension larger than point'
+  assert len(list(filter(lambda p: p == None, point))) == 1, 'should have 1 None argument on point'
+
+  p = point + [1]
+  null_index = None
+  for idx in range(len(point)):
+    if point[idx] == None:
+      null_index = idx
+  assert null_index != None, 'null index expected'
+  if is_zero(line[null_index]):
+    return None
+
+  s = sum(map(lambda c, p: c * (p if p != None else 0), line, p))
+  return - s / line[null_index]
+
+def create_region(point, vector, lines):
+  assert len(lines) >= 2, 'not enough lines for a region'
+
+  p = point
+  v = vector
+  regions = []
+  for line in lines:
+    pp = intersect_line(line, p, v)
+    regions.append([p, pp])
+    p = pp
+    v = vector_from_line(line)
+  regions.append([p, point])
+  return regions
+
+def vector_from_line(line):
+  return [-line[1], line[0]]
+
 ### Tests
 
 assert(lerp(0, 1, 50, 100) == 1/2)
@@ -302,6 +386,19 @@ assert(distance_squared([1,2,3], [0,1,-1]) == 18)
 
 assert(equals(point_to_angle([1,1]), pi / 4))
 
+assert evaluate_line([1, 2, 3], [2, None]) == -5/2, 'bad y calcualation for x+2y+3 (x==2)'
+assert evaluate_line([1, 2, 3], [None, 2]) == -7, 'bad x calcualation for x+2y+3 (y==2)'
+assert evaluate_line([1, 0, 3], [None, 2]) == -3, 'bad x calcualation for x+3 (y==2)'
+assert evaluate_line([0, 1, 2], [1, None]) == -2, 'bad 7 calcualation for y+2 (x==1)'
+
+line = [1, 2, 3]
+assert intersect_line(line, [1,1], [1,1]) == [-1, -1], 'incorrect line intersection'
+assert intersect_line(line, [1,1], [1,2]) == [-1/5, -7/5], 'incorrect line intersection'
+assert intersect_line(line, [1,4], [0,1]) == [1, -2], 'incorrect line intersection'
+assert intersect_line(line, [-1/5,-7/5], [1,1]) == [-1/5, -7/5], 'incorrect line intersection'
+assert intersect_line(line, [-1/5,-7/5], [-2,1]) == [-1/5, -7/5], 'vector is parallel but the point is on the line, should intersect'
+assert intersect_line(line, [1,4], [-2,1]) == None, 'should have no intersection with parallel vector'
+
 print(evalf([1,pi]))
 print(evalf((1,pi)))
 
@@ -311,7 +408,7 @@ b = [[-1,1], [1,-2], [1,1], [-1,0]] # = NS^T
 
 d = DiscriminantFunction(b)
 
-f = lambda angle: d.evaluate(angle_to_point(evalf(angle))
+f = lambda angle: d.evaluate(angle_to_point(evalf(angle)))
 angles = b_to_zero_angles(b)
 
 vals = simple_intersect(f, [angles[0], angles[1]], [angles[2], angles[3]], 3)
@@ -322,13 +419,103 @@ assert equals(vals[1], 1.4082515450111763), 'incorrect right intersection angle'
 vals = simple_intersect(f, [angles[0], angles[1]], [angles[3], angles[4]], 3)
 assert(is_zero(vals[2]) == False)
 
+A = [[0,1,2,3,4]]
 AA = [[1,1,1,1,1],[0,1,2,3,4]]
 NS = [[-1,1,0,1,-1],[0,1,-1,-1,1]]
 b3 = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [-4, -3, -2], [3, 2, 1]]
 
-m = matrix(AA)
-# m.transpose().null_space()
+green = b3[-1]
+blue = b3[-2]
+yaxis = b3[0]
+xaxis = b3[1]
 
+
+region1 = create_region([-3, 0], [0, 1], [blue, xaxis])
+region2 = create_region(region1[0][1], [0,1], [green, xaxis, blue])
+region3 = create_region(region2[0][1], [1,0], [yaxis, xaxis, green])
+region4 = create_region([0, 3], [1, -1], [xaxis, yaxis])
+
+region5 = create_region([0, -3], [-1, 1], [xaxis, blue, yaxis])
+region6 = create_region([-1/2, 0], vector_from_line(xaxis), [green, yaxis, blue])
+region7 = create_region([0, 0], [0, -1], [green, xaxis])
+region8 = create_region([3, 0], [0, -1], [blue, green, yaxis, xaxis])
+region9 = create_region([0, -3], [1, 0], [green, blue, yaxis]) # this one is counter clockwise
+region10 = create_region(region9[0][1], vector_from_line(green), [blue, [1, 0, 3]])
+
+regions = [region1, region2, region3,
+           region4, region5, region6,
+           region7, region8, region9, region10]
+
+for region in regions:
+  print(region)
+
+
+m = matrix([[1]*len(A[0])] + A)
 Bm = m.transpose().integer_kernel().basis_matrix().transpose()
-B = map(lambda b: list(b), list(Bm))
-print(list(B))
+B = list(map(lambda b: list(b), list(Bm)))
+print(B)
+d = DiscriminantFunction(B)
+f = lambda point: d.evaluate(point + [1])
+print(f([-0.1, -0.25]))
+
+point1 = [-0.2, 0]
+point2 = intersect_line(b3[0], point1, [-2, 3])
+
+point1 = [0, 0.4]
+point2 = intersect_line(green, point1, [-1, 0])
+
+point1 = [0, 0.6]
+point2 = intersect_line(xaxis, point1, [-1, 1])
+
+point1 = [0.5, 0]
+point2 = [0, 0.5]
+
+point1 = [0.5, 0]
+point2 = [0, -0.5]
+
+region11 = [-1, 0]
+region12 = intersect_line(blue, region11, [1, 1])
+
+region21 = [-0.5, 0]
+region22 = intersect_line(green, region21, [-8, 3])
+
+region31 = [0, 0.5]
+region32 = intersect_line(green, region31, [-1, 0])
+
+region41 = [0, 0.5]
+region42 = [0.5, 0]
+
+region51 = [-1, 0]
+region52 = [0, -1]
+
+region61 = [-0.5, 0]
+region62 = [0, -0.5]
+
+region71 = [-0.2, 0]
+region72 = [0, -0.3]
+
+region81 = [0, -0.5]
+region82 = [0.5, 0]
+
+region91 = [0, -0.6]
+region92 = intersect_line(green, region91, [1, 0])
+
+region101 = [0, -1.5]
+region102 = intersect_line(blue, region101, [1, 0])
+
+
+ppoint1 = [-0.7, 0]
+ppoint2 = intersect_line(b3[0], ppoint1, [-2, 3])
+
+ppoint1 = [-1, 0]
+ppoint2 = [0, -1]
+
+regions = [[region11, region12], [region21, region22], [region31, region32],
+           [region41, region42], [region51, region52], [region61, region62],
+           [region71, region72], [region81, region82], [region91, region92],
+           [region101, region102]]
+
+region1 = [[[-1,0], ]]
+
+# 4, 9 within 0.09359803735962777
+
