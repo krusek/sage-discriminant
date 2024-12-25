@@ -1,4 +1,6 @@
 from sage.ext.fast_eval import fast_float_constant
+from sage.plot.plot3d.list_plot3d import list_plot3d_tuples
+from sage.plot.plot3d.shapes2 import Line as Line3d
 
 ### constants
 
@@ -363,6 +365,14 @@ def create_region(point, vector, lines):
 def vector_from_line(line):
   return [-line[1], line[0]]
 
+def create_arc(line):
+  phi = atan2(-line[0], line[1])
+  size = 100
+  angles = map(lambda t: pi/2 * (t - size) / size, range(2*size + 1))
+  pts = [(sin(theta)*cos(phi), sin(theta) * sin(phi), cos(theta)) for theta in angles]
+  print(evalf(pts))
+  return pts
+
 ### Tests
 
 assert(lerp(0, 1, 50, 100) == 1/2)
@@ -429,6 +439,17 @@ blue = b3[-2]
 yaxis = b3[0]
 xaxis = b3[1]
 
+pgreen = b3[-1]
+pblue = b3[-2]
+pyaxis = b3[0]
+pxaxis = b3[1]
+pzaxis = b3[2]
+
+gl = Line3d(create_arc(green))
+#bl = Line3d(create_arc(blue))
+#yl = Line3d(create_arc(yaxis))
+#xl = Line3d(create_arc(xaxis))
+show(gl + bl + yl + xl)
 
 region1 = create_region([-3, 0], [0, 1], [blue, xaxis])
 region2 = create_region(region1[0][1], [0,1], [green, xaxis, blue])
